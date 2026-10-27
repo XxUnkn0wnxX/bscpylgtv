@@ -247,14 +247,30 @@ class WebOsClient:
             raw_response = await ws.recv()
             response = json.loads(raw_response)
 
-            if response["type"] == "response" and response["payload"]["pairingType"] in [PAIRING_TYPES[0], PAIRING_TYPES[2]]:
+            if (
+                self.manifest is MANIFEST
+                and response.get("type") == "error"
+                and response.get("error") == "403 Pairing rejected: blacklisted certificate detected"
+            ):
+                self.manifest = {
+                    key: value for key, value in MANIFEST.items()
+                    if key not in ("signed", "signatures")
+                }
+                logger.info("Signed pairing rejected; retrying with unsigned manifest")
+                await ws.send(json.dumps(self.registration_msg()))
                 raw_response = await ws.recv()
                 response = json.loads(raw_response)
 
-                if response["type"] == "registered":
-                    self.client_key = response["payload"]["client-key"]
-                    await self.storage.set_key(self.ip, self.client_key)
-            elif response["type"] == "response" and response["payload"]["pairingType"] in [PAIRING_TYPES[1], PAIRING_TYPES[3]]:
+            if (
+                response.get("type") == "response"
+                and response.get("payload", {}).get("pairingType") in [PAIRING_TYPES[0], PAIRING_TYPES[2]]
+            ):
+                raw_response = await ws.recv()
+                response = json.loads(raw_response)
+            elif (
+                response.get("type") == "response"
+                and response.get("payload", {}).get("pairingType") in [PAIRING_TYPES[1], PAIRING_TYPES[3]]
+            ):
                 pin = input("Enter PIN: ")
                 payload = {
                     "type": "request",
@@ -266,12 +282,18 @@ class WebOsClient:
                 raw_response = await ws.recv()
                 response = json.loads(raw_response)
 
-                if response["type"] == "registered":
-                    self.client_key = response["payload"]["client-key"]
-                    await self.storage.set_key(self.ip, self.client_key)
+            if response.get("type") != "registered":
+                error = response.get("error")
+                raise PyLGTVPairException(error if isinstance(error, str) else "Unable to pair")
 
-            if not self.client_key:
+            client_key = response.get("payload", {}).get("client-key")
+            if not isinstance(client_key, str) or not client_key:
                 raise PyLGTVPairException("Unable to pair")
+
+            key_changed = client_key != self.client_key
+            self.client_key = client_key
+            if key_changed and self.storage is not None:
+                await self.storage.set_key(self.ip, self.client_key)
 
             self.handler_tasks.add(asyncio.create_task(self.consumer_handler(ws)))
 
