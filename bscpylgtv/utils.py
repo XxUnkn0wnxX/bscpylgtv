@@ -86,9 +86,9 @@ def bscpylgtvcommand():
     parser.add_argument(
         "--log",
         dest="log",
-        default="DEBUG",
+        default="WARNING",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="set logging level (default: DEBUG)",
+        help="set logging level (default: WARNING)",
     )
     parser.add_argument(
         "-l", "--list_client_keys",
@@ -102,7 +102,7 @@ def bscpylgtvcommand():
 
     argsL, remainder = parser.parse_known_args()
 
-    log_level = getattr(logging, argsL.log.upper(), logging.DEBUG)
+    log_level = getattr(logging, argsL.log.upper(), logging.WARNING)
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
     logging.getLogger("bscpylgtv").setLevel(log_level)
 

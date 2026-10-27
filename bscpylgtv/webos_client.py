@@ -256,7 +256,7 @@ class WebOsClient:
                     key: value for key, value in MANIFEST.items()
                     if key not in ("signed", "signatures")
                 }
-                logger.info("Signed pairing rejected; retrying with unsigned manifest")
+                logger.debug("Signed pairing rejected; retrying with unsigned manifest")
                 await ws.send(json.dumps(self.registration_msg()))
                 raw_response = await ws.recv()
                 response = json.loads(raw_response)
